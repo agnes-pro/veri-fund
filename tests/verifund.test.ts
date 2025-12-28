@@ -548,3 +548,81 @@ describe("verifund tests", () => {
       [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("against")],
       address2
     );
+
+    expect(vote.result).toBeOk(Cl.bool(true));
+
+    // Withdrawal should fail due to insufficient approvals
+    const withdraw = simnet.callPublicFn(
+      "verifund",
+      "withdraw-milestone-reward",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(withdraw.result).toBeErr(Cl.uint(7)); // ERR-NOT-ENOUGH-APPROVALS
+  });
+
+  it("should test read-only functions work correctly", () => {
+    // Test get_campaign function
+    const campaign = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign",
+      [Cl.uint(campaignId)],
+      deployer
+    );
+
+    // Just check that the result is Ok and contains the right basic data
+    expect(campaign.result.type).toBe(7); // ResponseOk
+    const campaignData = cvToValue(campaign.result);
+    expect(campaignData.value.name.value).toBe("Feed-A-Child");
+    expect(campaignData.value.goal.value).toBe("100000");
+    expect(campaignData.value.status.value).toBe("funding");
+
+    // Test get_campaign_count function
+    const campaignCount = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign_count",
+      [],
+      deployer
+    );
+
+    expect(parseInt(cvToValue(campaignCount.result))).toBeGreaterThan(0);
+
+    // Test get_campaign_funders function (should be empty initially)
+    const funders = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign_funders",
+      [Cl.uint(campaignId)],
+      deployer
+    );
+
+    expect(cvToValue(funders.result)).toEqual([]);
+
+    // Fund campaign and test again
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const fundersAfter = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign_funders",
+      [Cl.uint(campaignId)],
+      deployer
+    );
+
+    const fundersData = cvToValue(fundersAfter.result);
+    expect(fundersData.length).toBe(1);
+    expect(fundersData[0].value).toBe(address2);
+
+    // Test get_funder_contribution function
+    const contribution = simnet.callReadOnlyFn(
+      "verifund",
+      "get_funder_contribution",
+      [Cl.uint(campaignId), Cl.principal(address2)],
+      deployer
+    );
