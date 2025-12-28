@@ -115,3 +115,59 @@
         (map update-milestone-helper milestones)
     )
 )
+
+(define-private (count-completed-helper
+    (milestone {name: (string-ascii 100), description: (string-ascii 500), amount: uint, status: (string-ascii 20), completion_date: (optional uint), votes_for: uint, votes_against: uint, vote_deadline: uint})
+    (count uint)
+)
+    (if (is-eq (get status milestone) "completed")
+        (+ count u1)
+        count
+    )
+)
+
+(define-private (count-completed-milestones
+    (milestones (list 10 {name: (string-ascii 100), description: (string-ascii 500), amount: uint, status: (string-ascii 20), completion_date: (optional uint), votes_for: uint, votes_against: uint, vote_deadline: uint}))
+)
+    (fold count-completed-helper milestones u0)
+)
+
+;; public functions
+;;
+(define-public (create_campaign 
+    (name (string-ascii 100)) 
+    (description (string-ascii 500)) 
+    (goal uint) 
+    (category (string-ascii 50))
+    (milestones (list 10 {name: (string-ascii 100), description: (string-ascii 500), amount: uint})) 
+    (proposal_link (optional (string-ascii 200))))
+    (let ((campaign_id (var-get campaign_count)))
+        (begin
+            (map-set campaigns campaign_id {
+                name: name,
+                description: description,
+                goal: goal,
+                amount_raised: u0,
+                balance: u0,
+                owner: tx-sender,
+                status: "funding",
+                category: category,
+                created_at: block-height,
+                milestones: (map add-milestone-defaults milestones),
+                proposal_link: proposal_link
+            })
+            (var-set campaign_count (+ campaign_id u1))
+            (ok campaign_id)
+        )
+    )
+)
+
+(define-public (fund_campaign (campaign_id uint) (amount uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (campaign_status (get status campaign))
+        (amount_raised (get amount_raised campaign))
+        (balance (get balance campaign))
+        (funded_amount (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: tx-sender})))
+        (campaign_funders (default-to (list ) (map-get? funders_by_campaign campaign_id)))
+    )
