@@ -171,3 +171,63 @@
         (funded_amount (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: tx-sender})))
         (campaign_funders (default-to (list ) (map-get? funders_by_campaign campaign_id)))
     )
+    (asserts! (is-eq campaign_status "funding") (err ERR-CAMPAIGN-NOT-ACTIVE))
+        (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+        (map-set funders {campaign_id: campaign_id, funder: tx-sender} (+ funded_amount amount))
+        (if (is-none (index-of? campaign_funders tx-sender))
+            (map-set funders_by_campaign campaign_id (unwrap! (as-max-len? (append campaign_funders tx-sender) u50) (err ERR-CANNOT-ADD-FUNDER)))
+            true
+        )
+        (ok (map-set campaigns campaign_id (merge campaign {
+            amount_raised: (+ amount_raised amount),
+            balance: (+ balance amount)
+        })))
+    )
+)
+
+(define-public (approve-milestone (campaign_id uint) (milestone_index uint) (vote (string-ascii 10)))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (milestones (get milestones campaign))
+        (milestone (unwrap! (element-at? milestones milestone_index) (err ERR-MILESTONE-DOES-NOT-EXIST)))
+        (milestone_status (get status milestone))
+        (vote_deadline (get vote_deadline milestone))
+        (approvals (default-to {approvals: u0, voters: (list )} (map-get? milestone_approvals {campaign_id: campaign_id, milestone_index: milestone_index})))
+        (campaign_funders (default-to (list ) (map-get? funders_by_campaign campaign_id)))
+        (amount_funded (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: tx-sender})))
+        (voters (get voters approvals))
+        (existing_vote (map-get? funder_votes {campaign_id: campaign_id, milestone_index: milestone_index, funder: tx-sender}))
+    )   
+        (asserts! (is-eq milestone_status "voting") (err ERR-MILESTONE-NOT-IN-VOTING))
+        (asserts! (< block-height vote_deadline) (err ERR-VOTE-DEADLINE-PASSED))
+        (asserts! (is-some (index-of? campaign_funders tx-sender)) (err ERR-NOT-A-FUNDER))
+        (asserts! (is-none existing_vote) (err ERR-ALREADY-VOTED))
+        (asserts! (or (is-eq vote "for") (is-eq vote "against")) (err ERR-INVALID-VOTE))
+        
+        ;; Record individual vote
+        (map-set funder_votes {campaign_id: campaign_id, milestone_index: milestone_index, funder: tx-sender} {
+            vote: vote,
+            timestamp: block-height
+        })
+
+        ;; Update milestone votes and campaign
+        (var-set milestone_target_index milestone_index)
+        (let ((updated_milestones (update-milestone-at-index milestones milestone_index
+            (if (is-eq vote "for")
+                (merge milestone {votes_for: (+ (get votes_for milestone) amount_funded)})
+                (merge milestone {votes_against: (+ (get votes_against milestone) amount_funded)})
+            )
+        )))
+            (map-set campaigns campaign_id (merge campaign {milestones: updated_milestones}))
+        )
+
+        ;; Update approval tracking
+        (map-set milestone_approvals {campaign_id: campaign_id, milestone_index: milestone_index} {
+            approvals: (if (is-eq vote "for")
+                (+ (get approvals approvals) amount_funded)
+                (get approvals approvals)),
+            voters: (unwrap! (as-max-len? (append voters tx-sender) u50) (err ERR-MILESTONE-ALREADY-APPROVED))
+        })
+        (ok true)
+    )
+)
