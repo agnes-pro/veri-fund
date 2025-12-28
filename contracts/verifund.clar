@@ -231,3 +231,55 @@
         (ok true)
     )
 )
+
+(define-public (withdraw-milestone-reward (campaign_id uint) (milestone_index uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (milestones (get milestones campaign))
+        (milestone (unwrap! (element-at? milestones milestone_index) (err ERR-MILESTONE-DOES-NOT-EXIST)))
+        (milestone_status (get status milestone))
+        (votes_for (get votes_for milestone))
+        (votes_against (get votes_against milestone))
+        (milestone_amount (get amount milestone))
+        (balance (get balance campaign))
+        (campaign_owner (get owner campaign))
+        (amount_raised (get amount_raised campaign))
+        (amount_to_withdraw (if (or (is-eq milestone_index (- (len milestones) u1)) (< balance milestone_amount)) balance milestone_amount))
+        (total_votes (+ votes_for votes_against))
+    )
+        (asserts! (is-eq campaign_owner tx-sender) (err ERR-NOT-OWNER))
+        (asserts! (is-eq milestone_status "voting") (err ERR-MILESTONE-NOT-IN-VOTING))
+        (asserts! (> amount_to_withdraw u0) (err ERR-INSUFFICIENT-BALANCE))
+        (asserts! (>= votes_for (/ amount_raised u2)) (err ERR-NOT-ENOUGH-APPROVALS))
+        (asserts! (> votes_for votes_against) (err ERR-NOT-ENOUGH-APPROVALS))
+        
+        ;; Mark milestone as completed
+        (var-set milestone_target_index milestone_index)
+        (let (
+            (completed_milestone {
+                name: (get name milestone),
+                description: (get description milestone),
+                amount: (get amount milestone),
+                status: "completed",
+                completion_date: (some block-height),
+                votes_for: votes_for,
+                votes_against: votes_against,
+                vote_deadline: (get vote_deadline milestone)
+            })
+            (updated_milestones (update-milestone-at-index milestones milestone_index completed_milestone))
+            (completed_count (count-completed-milestones updated_milestones))
+            (total_milestones (len milestones))
+            (new_campaign_status (if (is-eq completed_count total_milestones) "completed" "funding"))
+        )
+            ;; Update campaign with completed milestone and new status
+            (map-set campaigns campaign_id (merge campaign {
+                milestones: updated_milestones,
+                balance: (- balance amount_to_withdraw),
+                status: new_campaign_status
+            }))
+
+            (try! (as-contract (stx-transfer? amount_to_withdraw tx-sender campaign_owner)))
+            (ok true)
+        )
+    )
+)
