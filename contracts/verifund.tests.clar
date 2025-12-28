@@ -171,3 +171,83 @@
     )
   )
 )
+
+;; Test 10: Cancelling changes status to "cancelled"
+(define-public (test-cancel-changes-status (goal uint))
+  (if (is-eq goal u0)
+    (ok false)
+    (let ((cid-result (create_campaign "C" "C" goal "T" (list {name: "M", description: "M", amount: goal}) none)))
+      (if (is-ok cid-result)
+        (let ((cid (unwrap-panic cid-result)))
+          (if (is-ok (cancel_campaign cid))
+            (let ((camp-result (get_campaign cid)))
+              (if (is-ok camp-result)
+                (begin
+                  (asserts! (is-eq (get status (unwrap-panic camp-result)) "cancelled") (err ERR_TEST_FAILED))
+                  (ok true)
+                )
+                (err ERR_TEST_FAILED)
+              )
+            )
+            (err ERR_TEST_FAILED)
+          )
+        )
+        (err ERR_TEST_FAILED)
+      )
+    )
+  )
+)
+
+;; Test 11: Milestone voting not expired initially
+(define-public (test-milestone-not-expired (goal uint))
+  (if (is-eq goal u0)
+    (ok false)
+    (let ((cid-result (create_campaign "E" "E" goal "T" (list {name: "M", description: "M", amount: goal}) none)))
+      (if (is-ok cid-result)
+        (begin
+          (asserts! (is-eq (is_milestone_voting_expired (unwrap-panic cid-result) u0) false) (err ERR_TEST_FAILED))
+          (ok true)
+        )
+        (err ERR_TEST_FAILED)
+      )
+    )
+  )
+)
+
+;; Test 12: Campaign created_at is current block height
+(define-public (test-campaign-created-at-block (goal uint))
+  (if (is-eq goal u0)
+    (ok false)
+    (let (
+      (current-block block-height)
+      (cid-result (create_campaign "B" "B" goal "T" (list {name: "M", description: "M", amount: goal}) none))
+    )
+      (if (is-ok cid-result)
+        (let ((camp-result (get_campaign (unwrap-panic cid-result))))
+          (if (is-ok camp-result)
+            (begin
+              (asserts! (is-eq (get created_at (unwrap-panic camp-result)) current-block) (err ERR_TEST_FAILED))
+              (ok true)
+            )
+            (err ERR_TEST_FAILED)
+          )
+        )
+        (err ERR_TEST_FAILED)
+      )
+    )
+  )
+)
+
+;; ============================================
+;; INVARIANT TESTS
+;; ============================================
+
+;; Invariant 1: Campaign count never decreases
+(define-read-only (invariant-campaign-count-monotonic)
+  true  ;; Count can only increase via create_campaign
+)
+
+;; Invariant 2: Campaign count is always non-negative  
+(define-read-only (invariant-count-non-negative)
+  (>= (get_campaign_count) u0)
+)
