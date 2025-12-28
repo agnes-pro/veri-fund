@@ -326,3 +326,81 @@ describe("verifund tests", () => {
     const campaignData = cvToValue(campaign.result);
     expect(campaignData.value.status.value).toBe("cancelled");
   });
+
+  uld allow funders to request refund from cancelled campaign", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const cancel = simnet.callPublicFn(
+      "verifund",
+      "cancel_campaign",
+      [Cl.uint(campaignId)],
+      deployer
+    );
+
+    expect(cancel.result).toBeOk(Cl.bool(true));
+    const refund = simnet.callPublicFn(
+      "verifund",
+      "request_refund",
+      [Cl.uint(campaignId)],
+      address2
+    );
+    expect(refund.result).toBeOk(Cl.uint(20000));
+  });
+
+  it("should allow campaign organizers to withdraw with enough approvals", () => {
+    const fund1 = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(60000)],
+      address2
+    );
+
+    const fund2 = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(40000)],
+      address3
+    );
+
+    expect(fund1.result).toBeOk(Cl.bool(true));
+    expect(fund2.result).toBeOk(Cl.bool(true));
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    const vote1 = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address2
+    );
+
+    const vote2 = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address3
+    );
+
+    expect(vote1.result).toBeOk(Cl.bool(true));
+    expect(vote2.result).toBeOk(Cl.bool(true));
+  
+    const withdraw = simnet.callPublicFn(
+      "verifund",
+      "withdraw-milestone-reward",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
