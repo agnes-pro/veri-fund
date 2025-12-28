@@ -283,3 +283,72 @@
         )
     )
 )
+
+;; read only functions
+;;
+
+(define-read-only (get_campaign (campaign_id uint))
+    (let ((campaign (map-get? campaigns campaign_id)))
+        (if (is-none campaign)
+            (err ERR-CAMPAIGN-NOT-FOUND)
+            (ok (unwrap! campaign (err ERR-CAMPAIGN-NOT-FOUND)))
+        )
+    )
+)
+
+(define-read-only (get_campaign_milestone (campaign_id uint) (milestone_index uint))
+    (let ((campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+          (milestones (get milestones campaign))
+          (milestone (element-at? milestones milestone_index)))
+                (if (is-none milestone)
+                    (err ERR-MILESTONE-DOES-NOT-EXIST)
+                    (ok (unwrap! milestone (err ERR-CAMPAIGN-NOT-FOUND)))
+                )
+            )
+        )
+
+(define-read-only (get_campaign_funders (campaign_id uint))
+    (default-to (list) (map-get? funders_by_campaign campaign_id))
+)
+
+(define-read-only (get_milestone_votes (campaign_id uint) (milestone_index uint))
+    (default-to {approvals: u0, voters: (list)} 
+        (map-get? milestone_approvals {campaign_id: campaign_id, milestone_index: milestone_index}))
+)
+
+(define-read-only (get_campaign_count)
+    (var-get campaign_count)
+)
+
+(define-read-only (get_funder_contribution (campaign_id uint) (funder principal))
+    (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: funder}))
+)
+
+(define-read-only (get_funder_vote (campaign_id uint) (milestone_index uint) (funder principal))
+    (map-get? funder_votes {campaign_id: campaign_id, milestone_index: milestone_index, funder: funder})
+)
+
+(define-read-only (is_milestone_voting_expired (campaign_id uint) (milestone_index uint))
+    (let (
+        (campaign (map-get? campaigns campaign_id))
+    )
+        (if (is-some campaign)
+            (let (
+                (milestones (get milestones (unwrap-panic campaign)))
+                (milestone (element-at? milestones milestone_index))
+            )
+                (if (is-some milestone)
+                    (let (
+                        (milestone_data (unwrap-panic milestone))
+                        (vote_deadline (get vote_deadline milestone_data))
+                        (milestone_status (get status milestone_data))
+                    )
+                        (and (is-eq milestone_status "voting") (>= block-height vote_deadline))
+                    )
+                    false
+                )
+            )
+            false
+        )
+    )
+)
