@@ -327,7 +327,7 @@ describe("verifund tests", () => {
     expect(campaignData.value.status.value).toBe("cancelled");
   });
 
-  uld allow funders to request refund from cancelled campaign", () => {
+  it("should allow funders to request refund from cancelled campaign", () => {
     const fund = simnet.callPublicFn(
       "verifund",
       "fund_campaign",
@@ -626,3 +626,51 @@ describe("verifund tests", () => {
       [Cl.uint(campaignId), Cl.principal(address2)],
       deployer
     );
+
+    expect(cvToValue(contribution.result)).toBe(20000n);
+
+    // Test get_campaign_progress function
+    const progress = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign_progress",
+      [Cl.uint(campaignId)],
+      deployer
+    );
+
+    const progressData = cvToValue(progress.result);
+    expect(progressData.value.amount_raised.value).toBe("20000");
+    expect(progressData.value.goal.value).toBe("100000");
+    expect(progressData.value.progress_percentage.value).toBe("20");
+    expect(progressData.value.is_funded.value).toBe(false);
+  });
+
+  it("should handle invalid vote values", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    // Try to vote with invalid vote value
+    const invalidVote = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("maybe")],
+      address2
+    );
+
+    expect(invalidVote.result).toBeErr(Cl.uint(17)); // ERR-INVALID-VOTE
+  });
+});
