@@ -60,7 +60,7 @@
     proposal_link: (optional (string-ascii 200)),
     })
 
-    (define-map funders {campaign_id: uint, funder: principal} uint)
+(define-map funders {campaign_id: uint, funder: principal} uint)
 (define-map funders_by_campaign uint (list 50 principal))
 (define-map milestone_approvals {campaign_id: uint, milestone_index: uint} {approvals: uint, voters: (list 50 principal)})
 (define-map funder_votes {campaign_id: uint, milestone_index: uint, funder: principal} {vote: (string-ascii 10), timestamp: uint})
@@ -171,7 +171,7 @@
         (funded_amount (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: tx-sender})))
         (campaign_funders (default-to (list ) (map-get? funders_by_campaign campaign_id)))
     )
-    (asserts! (is-eq campaign_status "funding") (err ERR-CAMPAIGN-NOT-ACTIVE))
+        (asserts! (is-eq campaign_status "funding") (err ERR-CAMPAIGN-NOT-ACTIVE))
         (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
         (map-set funders {campaign_id: campaign_id, funder: tx-sender} (+ funded_amount amount))
         (if (is-none (index-of? campaign_funders tx-sender))
@@ -401,5 +401,54 @@
             (try! (as-contract (stx-transfer? refund_amount tx-sender refunder)))
             (ok refund_amount)
         )
+    )
+)
+
+(define-public (start_milestone_voting (campaign_id uint) (milestone_index uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (campaign_owner (get owner campaign))
+        (milestones (get milestones campaign))
+        (milestone (unwrap! (element-at? milestones milestone_index) (err ERR-MILESTONE-DOES-NOT-EXIST)))
+        (milestone_status (get status milestone))
+    )
+        (asserts! (is-eq campaign_owner tx-sender) (err ERR-NOT-OWNER))
+        (asserts! (is-eq milestone_status "pending") (err ERR-MILESTONE-ALREADY-COMPLETED))
+        
+        ;; Update milestone to voting status with 15-day deadline
+        (begin
+            (var-set milestone_target_index milestone_index)
+            (let ((updated_milestones (update-milestone-at-index milestones milestone_index {
+                name: (get name milestone),
+                description: (get description milestone),
+                amount: (get amount milestone),
+                status: "voting",
+                completion_date: (get completion_date milestone),
+                votes_for: u0,
+                votes_against: u0,
+                vote_deadline: (+ block-height VOTING_PERIOD_BLOCKS)
+            })))
+                (map-set campaigns campaign_id (merge campaign {
+                    milestones: updated_milestones
+                }))
+                (ok true)
+            )
+        )
+    )
+)
+
+(define-public (cancel_campaign (campaign_id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (campaign_owner (get owner campaign))
+        (campaign_status (get status campaign))
+    )
+        (asserts! (is-eq campaign_owner tx-sender) (err ERR-NOT-OWNER))
+        (asserts! (is-eq campaign_status "funding") (err ERR-CAMPAIGN-NOT-ACTIVE))
+        
+        (map-set campaigns campaign_id (merge campaign {
+            status: "cancelled"
+        }))
+        (ok true)
     )
 )
