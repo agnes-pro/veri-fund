@@ -352,3 +352,54 @@
         )
     )
 )
+
+(define-read-only (get_campaign_progress (campaign_id uint))
+    (let ((campaign (map-get? campaigns campaign_id)))
+        (if (is-some campaign)
+            (let (
+                (campaign_data (unwrap-panic campaign))
+                (raised (get amount_raised campaign_data))
+                (goal (get goal campaign_data))
+            )
+                (ok {
+                    progress_percentage: (if (> goal u0) (/ (* raised u100) goal) u0),
+                    amount_raised: raised,
+                    goal: goal,
+                    is_funded: (>= raised goal)
+                })
+            )
+            (err ERR-CAMPAIGN-NOT-FOUND)
+        )
+    )
+)
+
+;; Additional public functions
+(define-public (request_refund (campaign_id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign_id) (err ERR-CAMPAIGN-NOT-FOUND)))
+        (campaign_status (get status campaign))
+        (amount_raised (get amount_raised campaign))
+        (goal (get goal campaign))
+        (funder_amount (default-to u0 (map-get? funders {campaign_id: campaign_id, funder: tx-sender})))
+        (balance (get balance campaign))
+        (refunder tx-sender)
+    )
+        (asserts! (> funder_amount u0) (err ERR-NOT-A-FUNDER))
+        (asserts! (is-eq campaign_status "cancelled") (err ERR-REFUND-NOT-AVAILABLE))
+
+        ;; Calculate refund amount proportionally
+        (let ((refund_amount (/ (* funder_amount balance) amount_raised)))
+            (asserts! (> refund_amount u0) (err ERR-INSUFFICIENT-BALANCE))
+
+            ;; Remove funder and update campaign
+            (map-delete funders {campaign_id: campaign_id, funder: refunder})
+            (map-set campaigns campaign_id (merge campaign {
+                balance: (- balance refund_amount),
+                amount_raised: (- amount_raised funder_amount)
+            }))
+
+            (try! (as-contract (stx-transfer? refund_amount tx-sender refunder)))
+            (ok refund_amount)
+        )
+    )
+)
