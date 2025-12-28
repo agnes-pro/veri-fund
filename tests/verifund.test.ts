@@ -477,3 +477,74 @@ describe("verifund tests", () => {
 
     expect(vote.result).toBeErr(Cl.uint(4)); // ERR-NOT-A-FUNDER
   });
+
+  it("should prevent voting on milestones not in voting status", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    // Try to vote without starting voting first
+    const vote = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address2
+    );
+
+    expect(vote.result).toBeErr(Cl.uint(13)); // ERR-MILESTONE-NOT-IN-VOTING
+  });
+
+  it("should prevent non-owners from starting milestone voting", () => {
+    // Non-owner should not be able to start voting
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      address2 // address2 is not the campaign owner
+    );
+
+    expect(startVoting.result).toBeErr(Cl.uint(5)); // ERR-NOT-OWNER
+  });
+
+  it("should prevent non-owners from cancelling campaigns", () => {
+    // Non-owner should not be able to cancel campaign
+    const cancel = simnet.callPublicFn(
+      "verifund",
+      "cancel_campaign",
+      [Cl.uint(campaignId)],
+      address2 // address2 is not the campaign owner
+    );
+
+    expect(cancel.result).toBeErr(Cl.uint(5)); // ERR-NOT-OWNER
+  });
+
+  it("should prevent withdrawal without sufficient approvals", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    const vote = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("against")],
+      address2
+    );
