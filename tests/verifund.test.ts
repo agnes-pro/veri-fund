@@ -178,3 +178,79 @@ describe("verifund tests", () => {
       [Cl.uint(999), Cl.uint(20000)], // Non-existent campaign ID
       address3
     );
+
+    expect(result.result).toBeErr(Cl.uint(0));
+  });
+
+  it("should allow funders to approve milestones", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.events[0].event).toBe("stx_transfer_event");
+    expect(fund.events[0].data.amount).toBe("20000");
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    const approve = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address2
+    );
+
+    expect(approve.result).toBeOk(Cl.bool(true));
+
+    const milestone = simnet.getMapEntry("verifund", "milestone_approvals", Cl.tuple({campaign_id: Cl.uint(campaignId), milestone_index: Cl.uint(0)}));
+    expect(milestone).toBeSome(
+      Cl.tuple({
+        approvals: Cl.uint(20000),
+        voters: Cl.list([Cl.principal(address2)])
+      })
+    );
+
+    const vote = simnet.getMapEntry("verifund", "funder_votes", Cl.tuple({
+      campaign_id: Cl.uint(campaignId),
+      milestone_index: Cl.uint(0),
+      funder: Cl.principal(address2)
+    }));
+    expect(vote).toBeSome(
+      Cl.tuple({
+        vote: Cl.stringAscii("for"),
+        timestamp: Cl.uint(simnet.blockHeight)
+      })
+    );
+  });
+
+  it("should allow campaign owner to start milestone voting", () => {
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    // Use the read-only function to get milestone data
+    const milestone = simnet.callReadOnlyFn(
+      "verifund",
+      "get_campaign_milestone",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    const milestoneData = cvToValue(milestone.result);
+    expect(milestoneData.value.status.value).toBe("voting");
+    expect(parseInt(milestoneData.value.vote_deadline.value)).toBeGreaterThan(0);
+  });
