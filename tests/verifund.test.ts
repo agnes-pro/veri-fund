@@ -404,3 +404,76 @@ describe("verifund tests", () => {
       [Cl.uint(campaignId), Cl.uint(0)],
       deployer
     );
+
+    expect(withdraw.result).toBeOk(Cl.bool(true));
+  });
+
+  it("should prevent duplicate voting on milestones", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    // First vote should succeed
+    const vote1 = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address2
+    );
+
+    expect(vote1.result).toBeOk(Cl.bool(true));
+
+    // Second vote by same user should fail
+    const vote2 = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("against")],
+      address2
+    );
+
+    expect(vote2.result).toBeErr(Cl.uint(11)); // ERR-ALREADY-VOTED
+  });
+
+  it("should prevent non-funders from voting on milestones", () => {
+    const fund = simnet.callPublicFn(
+      "verifund",
+      "fund_campaign",
+      [Cl.uint(campaignId), Cl.uint(20000)],
+      address2
+    );
+
+    expect(fund.result).toBeOk(Cl.bool(true));
+
+    const startVoting = simnet.callPublicFn(
+      "verifund",
+      "start_milestone_voting",
+      [Cl.uint(campaignId), Cl.uint(0)],
+      deployer
+    );
+
+    expect(startVoting.result).toBeOk(Cl.bool(true));
+
+    // Non-funder should not be able to vote
+    const vote = simnet.callPublicFn(
+      "verifund",
+      "approve-milestone",
+      [Cl.uint(campaignId), Cl.uint(0), Cl.stringAscii("for")],
+      address4 // address4 didn't fund the campaign
+    );
+
+    expect(vote.result).toBeErr(Cl.uint(4)); // ERR-NOT-A-FUNDER
+  });
