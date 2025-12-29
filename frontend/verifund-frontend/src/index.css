@@ -1,0 +1,81 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 245 245 220;
+    --foreground: 46 34 22;
+
+    --card: 255 255 255;
+    --card-foreground: 46 34 22;
+
+    --popover: 255 255 255;
+    --popover-foreground: 46 34 22;
+
+    --primary: 107 142 35;
+    --primary-foreground: 255 255 255;
+
+    --secondary: 245 245 220;
+    --secondary-foreground: 46 34 22;
+
+    --muted: 228 223 213;
+    --muted-foreground: 101 89 76;
+
+    --accent: 107 142 35;
+    --accent-foreground: 255 255 255;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 255 255 255;
+
+    --border: 107 142 35;
+    --input: 107 142 35;
+    --ring: 101 89 76;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 245 245 220;
+    --sidebar-foreground: 46 34 22;
+    --sidebar-primary: 107 142 35;
+    --sidebar-primary-foreground: 255 255 255;
+    --sidebar-accent: 255 255 255;
+    --sidebar-accent-foreground: 46 34 22;
+    --sidebar-border: 107 142 35;
+    --sidebar-ring: 101 89 76;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-verifund-cream text-verifund-forest-dark font-['Inter'];
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-['Space_Grotesk'] text-verifund-forest-dark;
+  }
+}
+
+@layer components {
+  .gradient-bg {
+    background: linear-gradient(135deg, #F5F5DC 0%, #E4DDD4 50%, #D2B48C 100%);
+  }
+
+  .glass-card {
+    @apply bg-white/90 backdrop-blur-sm border border-verifund-sage/50 rounded-xl shadow-lg;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-verifund-sage to-verifund-moss text-white font-medium px-6 py-3 rounded-lg transition-all duration-300 hover:shadow-lg hover:scale-105;
+  }
+
+  .btn-secondary {
+    @apply border border-verifund-sage text-verifund-forest-dark font-medium px-6 py-3 rounded-lg transition-all duration-300 hover:bg-verifund-sage/10 hover:border-verifund-moss;
+  }
+}
